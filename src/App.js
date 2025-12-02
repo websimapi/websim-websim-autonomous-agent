@@ -42,15 +42,25 @@ const MousePointerIcon = (props) => (
 // Use Agent from the global window (set by Agent.js ES module)
 const Agent = window.Agent;
 
+import { bridgeCode } from './bridgeCode.js';
+import { BridgeController } from './BridgeController.js';
+import { IframeController } from './IframeController.js';
+
 function App() {
     const [url, setUrl] = useState('https://websim.com');
     const [currentUrl, setCurrentUrl] = useState('https://websim.com');
     const [messages, setMessages] = useState([
-        { role: 'system', content: 'Agent ready. Enter a URL (same-origin preferred for control) and an objective.' }
+        { role: 'system', content: 'Agent ready. Connect Bridge for best results, or use Iframe mode.' }
     ]);
     const [objective, setObjective] = useState('');
     const [isRunning, setIsRunning] = useState(false);
     const [agentState, setAgentState] = useState({ cursor: null, highlight: null });
+    
+    // Bridge State
+    const [useBridge, setUseBridge] = useState(false);
+    const [showBridgeModal, setShowBridgeModal] = useState(false);
+    const [bridgeConnected, setBridgeConnected] = useState(false);
+    const bridgeRef = useRef(new BridgeController());
 
     const iframeRef = useRef(null);
     const agentRef = useRef(null);
@@ -65,6 +75,26 @@ function App() {
         setMessages(prev => [...prev, { role, content, id: Date.now() + Math.random() }]);
     };
 
+    const toggleBridge = async () => {
+        if (!useBridge) {
+            addMessage('system', 'Connecting to Local Bridge...');
+            try {
+                await bridgeRef.current.connect();
+                setBridgeConnected(true);
+                setUseBridge(true);
+                addMessage('system', 'Connected to Bridge! Agent will now control the local browser.');
+            } catch (e) {
+                console.error(e);
+                addMessage('system', 'Could not connect to Bridge. Is it running?');
+                setShowBridgeModal(true);
+            }
+        } else {
+            setUseBridge(false);
+            setBridgeConnected(false);
+            addMessage('system', 'Disconnected from Bridge. Reverted to Iframe mode.');
+        }
+    };
+
     // Centralized navigation logic
     const performNavigation = async (target) => {
         let finalTarget = target.trim();
@@ -74,6 +104,18 @@ function App() {
         }
 
         try {
+            // Update URL input
+            if (finalTarget !== url) setUrl(finalTarget);
+
+            if (useBridge && bridgeConnected) {
+                addMessage('system', `Bridge navigating to ${finalTarget}...`);
+                await bridgeRef.current.navigate(finalTarget);
+                // We can't see the page in the iframe if it's external and no cors, 
+                // but the bridge sees it.
+                // Maybe we can ask bridge for a screenshot immediately?
+                return;
+            }
+
             const urlObj = new URL(finalTarget);
             const hostname = urlObj.hostname.toLowerCase();
 
@@ -85,11 +127,7 @@ function App() {
                 return;
             }
 
-            // Update URL input if different
-            if (finalTarget !== url) setUrl(finalTarget);
-
-            addMessage('system', `Navigating to ${finalTarget}...`);
-            
+            // Standard Iframe Navigation
             // Use Proxy
             if (window.createProxyUrl) {
                 try {
@@ -147,7 +185,16 @@ function App() {
         setIsRunning(true);
 
         // Initialize agent
-        agentRef.current = new Agent(iframeRef.current, addMessage, setAgentState);
+        let controller;
+        if (useBridge && bridgeConnected) {
+             controller = bridgeRef.current;
+             addMessage('system', 'Starting Agent via Bridge...');
+        } else {
+             controller = new IframeController(iframeRef.current);
+             addMessage('system', 'Starting Agent via Iframe. Please select tab to share.');
+        }
+
+        agentRef.current = new Agent(controller, addMessage, setAgentState);
 
         addMessage('user', objective);
         addMessage('system', 'IMPORTANT: When prompted, select the "Current Tab" or "Window" to allow the AI to see the page.');
@@ -170,11 +217,63 @@ function App() {
 
     return (
         <div className="w-full h-full flex">
+            {/* Modal for Bridge Code */}
+            {showBridgeModal && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+                    <div className="bg-gray-800 p-6 rounded-lg max-w-2xl w-full border border-gray-600 shadow-2xl">
+                        <h2 className="text-xl font-bold text-white mb-4">Setup Local Bridge</h2>
+                        <p className="text-gray-300 mb-4 text-sm">
+                            To control external websites and bypass CORS, run this Node.js script locally.
+                            <br/>1. Install Node.js
+                            <br/>2. Create a folder and run <code className="bg-gray-900 px-1 rounded">npm install ws puppeteer</code>
+                            <br/>3. Create <code className="bg-gray-900 px-1 rounded">bridge.js</code> with the code below and run <code className="bg-gray-900 px-1 rounded">node bridge.js</code>
+                        </p>
+                        <textarea 
+                            readOnly 
+                            className="w-full h-64 bg-gray-900 text-green-400 font-mono text-xs p-4 rounded border border-gray-700 mb-4"
+                            value={bridgeCode}
+                            onClick={(e) => e.target.select()}
+                        />
+                        <div className="flex justify-end gap-2">
+                            <button 
+                                onClick={() => setShowBridgeModal(false)}
+                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded"
+                            >
+                                Close
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setShowBridgeModal(false);
+                                    toggleBridge();
+                                }}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold"
+                            >
+                                Retry Connection
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Sidebar */}
             <div className="sidebar w-80 flex flex-col border-r border-gray-700 bg-gray-900 text-white">
-                <div className="p-4 border-b border-gray-700 font-bold flex items-center gap-2 bg-gray-800">
-                    <LayoutIcon size={20} className="text-blue-400" />
-                    <span>Websim Agent</span>
+                <div className="p-4 border-b border-gray-700 font-bold flex items-center gap-2 bg-gray-800 justify-between">
+                    <div className="flex items-center gap-2">
+                        <LayoutIcon size={20} className="text-blue-400" />
+                        <span>Websim Agent</span>
+                    </div>
+                    {/* Bridge Toggle */}
+                    <button 
+                        onClick={toggleBridge}
+                        className={`text-xs px-2 py-1 rounded border ${
+                            useBridge 
+                            ? 'bg-green-900/50 border-green-500 text-green-400' 
+                            : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'
+                        }`}
+                        title="Connect to Local Node.js Bridge"
+                    >
+                        {useBridge ? 'Bridge ON' : 'Bridge OFF'}
+                    </button>
                 </div>
 
                 <div className="chat-container flex-grow overflow-y-auto p-4 space-y-3 bg-gray-900">

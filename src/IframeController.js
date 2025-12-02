@@ -13,6 +13,28 @@ export class IframeController {
         }
     }
 
+    // Capture screenshot via screen sharing (shim to match Bridge interface)
+    // NOTE: This actually requires the Agent to call captureTab from utils, 
+    // but we can try to standardize the interface if we want.
+    // For now, we'll keep it simple and handle the difference in Agent.js or wrap it here.
+    
+    // Standardize interface for Agent
+    async getState(captureTabFn) {
+        const html = this.getHTML();
+        let screenshot = null;
+        if (captureTabFn) {
+             const blob = await captureTabFn();
+             // We need to convert blob to data url here? Or in utils?
+             // captureTab returns blob. Agent expects dataURL.
+             // Let's rely on Agent doing the conversion for now, 
+             // but ideally this controller should return the { html, screenshot } object.
+             
+             // To avoid circular dependency or complex passing, let's keep IframeController simple
+             // and handle the "Get State" logic in Agent by checking controller type.
+        }
+        return { html };
+    }
+
     // Get simplified HTML for the AI
     getHTML() {
         const doc = this.getDocument();

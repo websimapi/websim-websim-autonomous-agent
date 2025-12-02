@@ -2,8 +2,8 @@ import { captureTab, uploadToWebsim, sleep, blobToDataURL } from './utils.js';
 import { IframeController } from './IframeController.js';
 
 export class Agent {
-    constructor(iframeElement, addMessage, setAgentState) {
-        this.iframeController = new IframeController(iframeElement);
+    constructor(controller, addMessage, setAgentState) {
+        this.controller = controller;
         this.addMessage = addMessage;
         this.setAgentState = setAgentState; 
         this.history = [];
@@ -19,25 +19,42 @@ export class Agent {
                 this.addMessage('system', `Step ${step}/${maxSteps}: analyzing view...`);
                 
                 // 1. Capture State (Screen + HTML)
-                let screenshotBlob;
-                try {
+                let screenshotDataUrl;
+                let html;
+
+                // Determine if we are using Bridge or Iframe based on method existence
+                if (this.controller.getState) {
+                     // Bridge Mode
+                    this.addMessage('system', "Fetching state from Bridge...");
+                    try {
+                        const state = await this.controller.getState();
+                        html = state.html;
+                        screenshotDataUrl = state.screenshot;
+                    } catch (e) {
+                        this.addMessage('system', "Bridge Error: " + e.message);
+                        break;
+                    }
+                } else {
+                    // Iframe Mode
                     // We must wait a moment for the previous action to settle visually
                     await sleep(1000); 
-                    screenshotBlob = await captureTab();
-                } catch (e) {
-                    this.addMessage('system', "Screenshot failed or cancelled by user. Stopping.");
-                    return;
-                }
+                    let screenshotBlob;
+                    try {
+                        screenshotBlob = await captureTab();
+                    } catch (e) {
+                        this.addMessage('system', "Screenshot failed or cancelled by user. Stopping.");
+                        return;
+                    }
 
-                this.addMessage('system', "Processing visual data...");
-                
-                // Upload for persistence (as requested by user)
-                await uploadToWebsim(screenshotBlob);
-                
-                // Convert to Base64 Data URL for LLM (Required by API)
-                const screenshotDataUrl = await blobToDataURL(screenshotBlob);
-                
-                const html = this.iframeController.getHTML();
+                    this.addMessage('system', "Processing visual data...");
+                    // Upload for persistence (as requested by user)
+                    // await uploadToWebsim(screenshotBlob); // Optional now for speed
+                    
+                    // Convert to Base64 Data URL for LLM (Required by API)
+                    screenshotDataUrl = await blobToDataURL(screenshotBlob);
+                    
+                    html = this.controller.getHTML();
+                }
 
                 // 2. Consult LLM
                 this.addMessage('agent', "Thinking...");
@@ -57,9 +74,10 @@ export class Agent {
                 }
 
                 if (response.action) {
-                    // Visualize intent
-                    if (response.action.selector) {
-                        const bounds = this.iframeController.getElementBounds(response.action.selector);
+                    // Visualize intent (Only works well for Iframe currently, Bridge coords might differ)
+                    // If Bridge, we might skip overlay or map it if we knew viewport.
+                    if (response.action.selector && this.controller.getElementBounds) {
+                        const bounds = this.controller.getElementBounds(response.action.selector);
                         if (bounds) {
                             this.setAgentState({
                                 cursor: { x: bounds.left + bounds.width/2, y: bounds.top + bounds.height/2 },
@@ -72,17 +90,15 @@ export class Agent {
 
                     try {
                         this.addMessage('system', `Executing: ${response.action.type} on ${response.action.selector}`);
-                        await this.iframeController.executeAction(response.action);
+                        await this.controller.executeAction(response.action);
                     } catch (err) {
                         this.addMessage('system', `Action Error: ${err.message}`);
-                        // If action fails (e.g. cross origin), we might want to stop or ask for help
                         if (err.message.includes("Cross-Origin")) {
-                            this.addMessage('system', "CRITICAL: I cannot control this page due to browser security (Cross-Origin). I can only see it.");
-                            break;
+                             this.addMessage('system', "CRITICAL: Cross-Origin Error. Please switch to 'Local Bridge' mode.");
+                             break;
                         }
                     }
                     
-                    // Cleanup visual state
                     this.setAgentState({ cursor: null, highlight: null });
                 }
             }
