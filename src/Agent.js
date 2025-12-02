@@ -144,3 +144,6 @@ export class Agent {
         }
     }
 }
+
+// Expose Agent on the global window object so App.js (transpiled by Babel) can use it without imports
+window.Agent = Agent;

@@ -39,15 +39,12 @@ const MousePointerIcon = (props) => (
     </svg>
 );
 
-// Reintroduce Agent via global import using a script tag with type="module" compiled by Babel
-// We'll assume Agent.js is loaded before this script or rely on a global reference.
-// To keep things simple in this environment, we can attach Agent to window in Agent.js and use it here.
-// If Agent is already ES module only, this line will still work after Babel transpilation:
-import { Agent } from './Agent.js';
+// Use Agent from the global window (set by Agent.js ES module)
+const Agent = window.Agent;
 
 function App() {
-    const [url, setUrl] = useState('https://websim.ai');
-    const [currentUrl, setCurrentUrl] = useState('https://websim.ai');
+    const [url, setUrl] = useState('https://websim.com');
+    const [currentUrl, setCurrentUrl] = useState('https://websim.com');
     const [messages, setMessages] = useState([
         { role: 'system', content: 'Agent ready. Enter a URL (same-origin preferred for control) and an objective.' }
     ]);
