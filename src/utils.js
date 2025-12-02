@@ -22,15 +22,27 @@ export async function captureTab() {
 
         // Convert to Blob via Canvas
         const canvas = document.createElement('canvas');
-        canvas.width = bitmap.width;
-        canvas.height = bitmap.height;
+        
+        // Resize image to reduce payload size for LLM (max 1024px width)
+        let width = bitmap.width;
+        let height = bitmap.height;
+        const MAX_WIDTH = 1024;
+        
+        if (width > MAX_WIDTH) {
+            height = Math.round(height * (MAX_WIDTH / width));
+            width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(bitmap, 0, 0);
+        ctx.drawImage(bitmap, 0, 0, width, height);
         
         return new Promise((resolve) => {
             canvas.toBlob((blob) => {
                 resolve(blob);
-            }, 'image/png');
+            }, 'image/jpeg', 0.85); // Use JPEG for better compression/token efficiency
         });
     } catch (err) {
         console.error("Screen capture failed:", err);
@@ -53,4 +65,13 @@ export async function uploadToWebsim(blob) {
 
 export function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
 }

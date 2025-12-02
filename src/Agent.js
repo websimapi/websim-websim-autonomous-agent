@@ -1,4 +1,4 @@
-import { captureTab, uploadToWebsim, sleep } from './utils.js';
+import { captureTab, uploadToWebsim, sleep, blobToDataURL } from './utils.js';
 import { IframeController } from './IframeController.js';
 
 export class Agent {
@@ -30,13 +30,19 @@ export class Agent {
                 }
 
                 this.addMessage('system', "Processing visual data...");
-                const screenshotUrl = await uploadToWebsim(screenshotBlob);
+                
+                // Upload for persistence (as requested by user)
+                await uploadToWebsim(screenshotBlob);
+                
+                // Convert to Base64 Data URL for LLM (Required by API)
+                const screenshotDataUrl = await blobToDataURL(screenshotBlob);
+                
                 const html = this.iframeController.getHTML();
 
                 // 2. Consult LLM
                 this.addMessage('agent', "Thinking...");
                 
-                const response = await this.queryLLM(objective, screenshotUrl, html);
+                const response = await this.queryLLM(objective, screenshotDataUrl, html);
                 
                 if (!response) {
                     this.addMessage('agent', "I failed to generate a valid plan.");
@@ -86,7 +92,7 @@ export class Agent {
         }
     }
 
-    async queryLLM(objective, screenshotUrl, html) {
+    async queryLLM(objective, screenshotDataUrl, html) {
         const prompt = `
             You are an autonomous web agent.
             User Objective: "${objective}"
@@ -126,7 +132,7 @@ export class Agent {
                 content: [
                     { type: "text", text: prompt },
                     { type: "text", text: `HTML Context (Partial):\n${html}` },
-                    { type: "image_url", image_url: { url: screenshotUrl } }
+                    { type: "image_url", image_url: { url: screenshotDataUrl } }
                 ]
             }
         ];
