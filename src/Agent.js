@@ -14,7 +14,7 @@ export class Agent {
         
         try {
             // Limited loop steps
-            const maxSteps = 5;
+            const maxSteps = 15;
             for (let step = 1; step <= maxSteps; step++) {
                 this.addMessage('system', `Step ${step}/${maxSteps}: analyzing view...`);
                 

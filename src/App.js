@@ -64,7 +64,7 @@ function App() {
         setMessages(prev => [...prev, { role, content, id: Date.now() + Math.random() }]);
     };
 
-    const handleNavigate = (e) => {
+    const handleNavigate = async (e) => {
         e.preventDefault();
         
         let target = url.trim();
@@ -88,8 +88,22 @@ function App() {
                 return;
             }
 
-            setCurrentUrl(target);
-            addMessage('system', `Navigating to ${target}`);
+            addMessage('system', `Navigating to ${target}...`);
+            
+            // Attempt to create a proxy URL to bypass CORS/Iframe restrictions
+            let finalUrl = target;
+            if (window.createProxyUrl) {
+                try {
+                   finalUrl = await window.createProxyUrl(target);
+                   if (finalUrl !== target) {
+                       addMessage('system', 'Proxy activated: Full control enabled (Same-Origin).');
+                   }
+                } catch (err) {
+                    console.error("Proxy error", err);
+                }
+            }
+
+            setCurrentUrl(finalUrl);
         } catch (error) {
             addMessage('system', 'Error: Invalid URL entered.');
         }

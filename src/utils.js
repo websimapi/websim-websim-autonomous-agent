@@ -75,3 +75,38 @@ export function blobToDataURL(blob) {
         reader.readAsDataURL(blob);
     });
 }
+
+export async function createProxyUrl(targetUrl) {
+    try {
+        // Only attempt for websim domains to avoid wasting time on guaranteed CORS fails for external sites
+        const isWebsim = targetUrl.includes('websim.ai') || targetUrl.includes('websim.com') || targetUrl.includes('localhost');
+        if (!isWebsim) {
+            return targetUrl; 
+        }
+
+        // Fetch the content to serve from a blob (Same-Origin)
+        const response = await fetch(targetUrl);
+        if (!response.ok) throw new Error("Fetch failed: " + response.status);
+        
+        let html = await response.text();
+        
+        // Inject <base> tag to ensure relative links (images, css) resolve against the original URL
+        const baseTag = `<base href="${targetUrl}">`;
+        if (html.includes('<head>')) {
+            html = html.replace('<head>', `<head>${baseTag}`);
+        } else {
+            html = `<html><head>${baseTag}</head>` + html;
+        }
+
+        // Create a blob URL. This URL is same-origin with the parent (Websim), allowing full DOM access.
+        const blob = new Blob([html], { type: 'text/html' });
+        const blobUrl = URL.createObjectURL(blob);
+        return blobUrl;
+    } catch (e) {
+        console.warn("Proxy creation failed (likely CORS), falling back to direct URL.", e);
+        return targetUrl;
+    }
+}
+
+// Expose for App.js
+window.createProxyUrl = createProxyUrl;

@@ -5,7 +5,7 @@ export class IframeController {
 
     getDocument() {
         try {
-            return this.iframe.contentDocument;
+            return this.iframe.contentDocument || this.iframe.contentWindow?.document;
         } catch (e) {
             console.error("Cannot access iframe document (Cross-Origin):", e);
             return null;
