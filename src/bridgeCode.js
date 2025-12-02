@@ -1,4 +1,4 @@
-export const bridgeCode = `
+const bridgeCode = `
 const WebSocket = require('ws');
 const puppeteer = require('puppeteer');
 
@@ -116,3 +116,9 @@ wss.on('connection', async (ws) => {
     });
 });
 `;
+
+if (typeof window !== 'undefined') {
+    window.bridgeCode = bridgeCode;
+}
+
+export { bridgeCode };

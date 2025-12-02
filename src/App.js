@@ -42,9 +42,10 @@ const MousePointerIcon = (props) => (
 // Use Agent from the global window (set by Agent.js ES module)
 const Agent = window.Agent;
 
-import { bridgeCode } from './bridgeCode.js';
-import { BridgeController } from './BridgeController.js';
-import { IframeController } from './IframeController.js';
+// Removed imports to prevent Babel from generating require() calls
+const bridgeCode = window.bridgeCode;
+const BridgeController = window.BridgeController;
+const IframeController = window.IframeController;
 
 function App() {
     const [url, setUrl] = useState('https://websim.com');

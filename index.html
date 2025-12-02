@@ -15,6 +15,10 @@
 <body>
     <div id="root"></div>
     <!-- Load Agent as a native ES module so it can attach to window.Agent -->
+    <script type="module" src="src/utils.js"></script>
+    <script type="module" src="src/bridgeCode.js"></script>
+    <script type="module" src="src/IframeController.js"></script>
+    <script type="module" src="src/BridgeController.js"></script>
     <script type="module" src="src/Agent.js"></script>
     <!-- Tell Babel to use the env + react presets so JSX is transpiled and the app renders -->
     <script

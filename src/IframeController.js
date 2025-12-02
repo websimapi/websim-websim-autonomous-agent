@@ -147,3 +147,7 @@ export class IframeController {
         };
     }
 }
+
+if (typeof window !== 'undefined') {
+    window.IframeController = IframeController;
+}

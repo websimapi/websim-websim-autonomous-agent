@@ -93,6 +93,10 @@ export class BridgeController {
     }
 }
 
+if (typeof window !== 'undefined') {
+    window.BridgeController = BridgeController;
+}
+
 export class BridgeController {
     constructor(wsUrl = 'ws://localhost:3001') {
         this.wsUrl = wsUrl;
