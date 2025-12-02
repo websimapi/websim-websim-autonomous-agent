@@ -27,11 +27,33 @@ function App() {
 
     const handleNavigate = (e) => {
         e.preventDefault();
+        
+        let target = url.trim();
         // Ensure protocol
-        let target = url;
-        if (!target.startsWith('http')) target = 'https://' + target;
-        setCurrentUrl(target);
-        addMessage('system', `Navigating to ${target}`);
+        if (!target.startsWith('http://') && !target.startsWith('https://')) {
+            target = 'https://' + target;
+        }
+
+        try {
+            const urlObj = new URL(target);
+            const hostname = urlObj.hostname.toLowerCase();
+
+            // Enforce domain restriction: *.websim.ai or *.websim.com
+            const isAllowed = hostname === 'websim.ai' || 
+                              hostname.endsWith('.websim.ai') || 
+                              hostname === 'websim.com' || 
+                              hostname.endsWith('.websim.com');
+
+            if (!isAllowed) {
+                addMessage('system', 'Security Restriction: Navigation is limited to websim.ai and websim.com domains.');
+                return;
+            }
+
+            setCurrentUrl(target);
+            addMessage('system', `Navigating to ${target}`);
+        } catch (error) {
+            addMessage('system', 'Error: Invalid URL entered.');
+        }
     };
 
     const handleStart = async () => {
@@ -125,7 +147,8 @@ function App() {
                             className="flex-grow bg-gray-900 border border-gray-600 text-gray-200 px-4 py-2 rounded focus:border-blue-500 outline-none transition-colors"
                             value={url}
                             onChange={(e) => setUrl(e.target.value)}
-                            placeholder="https://..."
+                            onKeyDown={(e) => e.key === 'Enter' && handleNavigate(e)}
+                            placeholder="https://websim.ai..."
                         />
                         <button
                             onClick={handleNavigate}
