@@ -1,6 +1,48 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { createRoot } from 'react-dom/client';
-import { Play, Square, Send, Layout, MousePointer2 } from 'lucide-react';
+// REMOVE the ES module imports and replace with direct access to globals
+// import React, { useState, useEffect, useRef } from 'react';
+// import { createRoot } from 'react-dom/client';
+// import { Play, Square, Send, Layout, MousePointer2 } from 'lucide-react';
+// import { Agent } from './Agent.js';
+
+// Since we're using Babel with UMD React/ReactDOM, grab from globals
+const { useState, useEffect, useRef } = React;
+
+// Simple inline SVG icon components to avoid module imports
+const PlayIcon = (props) => (
+    <svg viewBox="0 0 24 24" width={props.size || 16} height={props.size || 16} fill="currentColor">
+        <path d="M8 5v14l11-7z" />
+    </svg>
+);
+
+const SquareIcon = (props) => (
+    <svg viewBox="0 0 24 24" width={props.size || 16} height={props.size || 16} fill="currentColor">
+        <rect x="6" y="6" width="12" height="12" />
+    </svg>
+);
+
+const SendIcon = (props) => (
+    <svg viewBox="0 0 24 24" width={props.size || 18} height={props.size || 18} fill="currentColor">
+        <path d="M4 4l16 8-16 8 4-8z" />
+    </svg>
+);
+
+const LayoutIcon = (props) => (
+    <svg viewBox="0 0 24 24" width={props.size || 20} height={props.size || 20} fill="currentColor">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <path d="M9 3v18M3 9h18" stroke="currentColor" strokeWidth="2" fill="none" />
+    </svg>
+);
+
+const MousePointerIcon = (props) => (
+    <svg viewBox="0 0 24 24" width={props.size || 16} height={props.size || 16} fill="currentColor">
+        <path d="M3 2l7 19 2-7 7-2L3 2z" />
+    </svg>
+);
+
+// Reintroduce Agent via global import using a script tag with type="module" compiled by Babel
+// We'll assume Agent.js is loaded before this script or rely on a global reference.
+// To keep things simple in this environment, we can attach Agent to window in Agent.js and use it here.
+// If Agent is already ES module only, this line will still work after Babel transpilation:
 import { Agent } from './Agent.js';
 
 function App() {
@@ -66,7 +108,7 @@ function App() {
         agentRef.current = new Agent(iframeRef.current, addMessage, setAgentState);
 
         addMessage('user', objective);
-        addMessage('system', 'IMPORTANT: When prompted, select the \"Current Tab\" or \"Window\" to allow the AI to see the page.');
+        addMessage('system', 'IMPORTANT: When prompted, select the "Current Tab" or "Window" to allow the AI to see the page.');
 
         try {
             await agentRef.current.runObjective(objective);
@@ -89,7 +131,7 @@ function App() {
             {/* Sidebar */}
             <div className="sidebar w-80 flex flex-col border-r border-gray-700 bg-gray-900 text-white">
                 <div className="p-4 border-b border-gray-700 font-bold flex items-center gap-2 bg-gray-800">
-                    <Layout size={20} className="text-blue-400" />
+                    <LayoutIcon size={20} className="text-blue-400" />
                     <span>Websim Agent</span>
                 </div>
 
@@ -123,14 +165,14 @@ function App() {
                                 disabled={!objective.trim()}
                                 className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 px-4 rounded flex items-center justify-center gap-2 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <Play size={16} fill="currentColor" /> Start Agent
+                                <PlayIcon size={16} /> Start Agent
                             </button>
                         ) : (
                             <button
                                 onClick={handleStop}
                                 className="flex-1 bg-red-600 hover:bg-red-500 text-white py-2 px-4 rounded flex items-center justify-center gap-2 font-medium transition-colors"
                             >
-                                <Square size={16} fill="currentColor" /> Stop
+                                <SquareIcon size={16} /> Stop
                             </button>
                         )}
                     </div>
@@ -154,7 +196,7 @@ function App() {
                             onClick={handleNavigate}
                             className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded transition-colors"
                         >
-                            <Send size={18} />
+                            <SendIcon size={18} />
                         </button>
                     </div>
                 </div>
@@ -190,7 +232,7 @@ function App() {
                                     top: agentState.cursor.y
                                 }}
                             >
-                                <MousePointer2 size={16} className="text-white drop-shadow-md" />
+                                <MousePointerIcon size={16} className="text-white" />
                             </div>
                         )}
                     </div>
@@ -200,5 +242,7 @@ function App() {
     );
 }
 
-const root = createRoot(document.getElementById('root'));
+// Mount using ReactDOM's createRoot from the UMD build
+const rootElement = document.getElementById('root');
+const root = ReactDOM.createRoot(rootElement);
 root.render(<App />);
