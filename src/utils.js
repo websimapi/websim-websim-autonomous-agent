@@ -78,32 +78,82 @@ export function blobToDataURL(blob) {
 
 export async function createProxyUrl(targetUrl) {
     try {
-        // Only attempt for websim domains to avoid wasting time on guaranteed CORS fails for external sites
-        const isWebsim = targetUrl.includes('websim.ai') || targetUrl.includes('websim.com') || targetUrl.includes('localhost');
-        if (!isWebsim) {
-            return targetUrl; 
+        console.log("Creating proxy for:", targetUrl);
+        let html;
+        
+        // 1. Try fetching directly (works for same-origin or permissive headers)
+        try {
+            const response = await fetch(targetUrl);
+            if (!response.ok) throw new Error("Direct fetch failed");
+            html = await response.text();
+        } catch (e) {
+            console.log("Direct fetch failed, trying CORS proxy...");
+            // 2. Try CORS proxy (corsproxy.io is generally reliable)
+            try {
+                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error("Proxy fetch failed");
+                html = await response.text();
+            } catch (proxyErr) {
+                // 3. Fallback to allorigins (slower but different mechanism)
+                console.log("Primary proxy failed, trying backup...");
+                const backupUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+                const response = await fetch(backupUrl);
+                const data = await response.json();
+                html = data.contents;
+            }
         }
 
-        // Fetch the content to serve from a blob (Same-Origin)
-        const response = await fetch(targetUrl);
-        if (!response.ok) throw new Error("Fetch failed: " + response.status);
-        
-        let html = await response.text();
-        
-        // Inject <base> tag to ensure relative links (images, css) resolve against the original URL
-        const baseTag = `<base href="${targetUrl}">`;
+        // 3. Process HTML
+        // Inject <base> tag to fix relative links (images, css, etc.)
+        const baseTag = `<base href="${targetUrl}" target="_self">`;
         if (html.includes('<head>')) {
             html = html.replace('<head>', `<head>${baseTag}`);
         } else {
             html = `<html><head>${baseTag}</head>` + html;
         }
 
-        // Create a blob URL. This URL is same-origin with the parent (Websim), allowing full DOM access.
+        // Inject Agent Helper Script
+        // - Intercepts clicks to handle navigation via parent (keeps user in proxy)
+        // - Allows future extensibility for postMessage actions
+        const script = `
+        <script>
+            (function() {
+                console.log("Websim Agent Proxy Active");
+                
+                // Intercept clicks for navigation
+                document.addEventListener('click', function(e) {
+                    const link = e.target.closest('a');
+                    if (link && link.href) {
+                        // Allow hash navigation on same page
+                        const url = new URL(link.href);
+                        if (url.origin === window.location.origin && url.pathname === window.location.pathname && url.hash) {
+                            return; 
+                        }
+
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        // Request navigation from parent
+                        window.parent.postMessage({
+                            type: 'PROXY_NAVIGATE',
+                            url: link.href
+                        }, '*');
+                    }
+                }, true);
+            })();
+        </script>
+        `;
+        
+        html += script;
+
+        // 4. Create Blob URL
         const blob = new Blob([html], { type: 'text/html' });
-        const blobUrl = URL.createObjectURL(blob);
-        return blobUrl;
+        return URL.createObjectURL(blob);
+
     } catch (e) {
-        console.warn("Proxy creation failed (likely CORS), falling back to direct URL.", e);
+        console.warn("Proxy creation failed:", e);
+        // Fallback to original URL (will likely fail CORS in iframe)
         return targetUrl;
     }
 }

@@ -7,7 +7,8 @@ export class IframeController {
         try {
             return this.iframe.contentDocument || this.iframe.contentWindow?.document;
         } catch (e) {
-            console.error("Cannot access iframe document (Cross-Origin):", e);
+            // Suppress error logging here to avoid spamming user console, 
+            // as we handle null checks downstream.
             return null;
         }
     }
@@ -51,7 +52,7 @@ export class IframeController {
     // Attempt to execute an action
     async executeAction(action) {
         const doc = this.getDocument();
-        if (!doc) throw new Error("Cannot execute action: Cross-Origin restriction.");
+        if (!doc) throw new Error("Cannot execute action: Cross-Origin restriction (Proxy inactive).");
 
         const { type, selector, value } = action;
 

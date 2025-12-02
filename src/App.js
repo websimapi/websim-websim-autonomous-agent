@@ -55,6 +55,7 @@ function App() {
     const iframeRef = useRef(null);
     const agentRef = useRef(null);
     const messagesEndRef = useRef(null);
+    const navigateToRef = useRef(null); // Ref to hold the latest navigation function
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -64,49 +65,79 @@ function App() {
         setMessages(prev => [...prev, { role, content, id: Date.now() + Math.random() }]);
     };
 
-    const handleNavigate = async (e) => {
-        e.preventDefault();
-        
-        let target = url.trim();
+    // Centralized navigation logic
+    const performNavigation = async (target) => {
+        let finalTarget = target.trim();
         // Ensure protocol
-        if (!target.startsWith('http://') && !target.startsWith('https://')) {
-            target = 'https://' + target;
+        if (!finalTarget.startsWith('http://') && !finalTarget.startsWith('https://')) {
+            finalTarget = 'https://' + finalTarget;
         }
 
         try {
-            const urlObj = new URL(target);
+            const urlObj = new URL(finalTarget);
             const hostname = urlObj.hostname.toLowerCase();
 
-            // Enforce domain restriction: *.websim.ai or *.websim.com
-            const isAllowed = hostname === 'websim.ai' || 
-                              hostname.endsWith('.websim.ai') || 
-                              hostname === 'websim.com' || 
-                              hostname.endsWith('.websim.com');
+            // Enforce domain restriction
+            const isAllowed = hostname.includes('websim.ai') || hostname.includes('websim.com');
 
             if (!isAllowed) {
-                addMessage('system', 'Security Restriction: Navigation is limited to websim.ai and websim.com domains.');
+                addMessage('system', 'Security Restriction: Navigation is limited to websim domains.');
                 return;
             }
 
-            addMessage('system', `Navigating to ${target}...`);
+            // Update URL input if different
+            if (finalTarget !== url) setUrl(finalTarget);
+
+            addMessage('system', `Navigating to ${finalTarget}...`);
             
-            // Attempt to create a proxy URL to bypass CORS/Iframe restrictions
-            let finalUrl = target;
+            // Use Proxy
             if (window.createProxyUrl) {
                 try {
-                   finalUrl = await window.createProxyUrl(target);
-                   if (finalUrl !== target) {
-                       addMessage('system', 'Proxy activated: Full control enabled (Same-Origin).');
+                   addMessage('system', 'Establishing secure proxy connection...');
+                   const finalUrl = await window.createProxyUrl(finalTarget);
+                   
+                   if (finalUrl.startsWith('blob:')) {
+                       addMessage('system', 'Proxy active. Full agent control enabled.');
+                   } else {
+                       addMessage('system', 'Proxy failed to create blob. Using direct link (ReadOnly mode).');
                    }
+                   
+                   setCurrentUrl(finalUrl);
                 } catch (err) {
                     console.error("Proxy error", err);
+                    setCurrentUrl(finalTarget);
                 }
+            } else {
+                setCurrentUrl(finalTarget);
             }
-
-            setCurrentUrl(finalUrl);
         } catch (error) {
             addMessage('system', 'Error: Invalid URL entered.');
         }
+    };
+
+    // Update ref so event listener calls latest function
+    useEffect(() => {
+        navigateToRef.current = performNavigation;
+    });
+
+    // Listen for navigation requests from the iframe proxy
+    useEffect(() => {
+        const handleMessage = (event) => {
+            if (event.data && event.data.type === 'PROXY_NAVIGATE') {
+                const newUrl = event.data.url;
+                addMessage('system', `Link clicked: ${newUrl}`);
+                if (navigateToRef.current) {
+                    navigateToRef.current(newUrl);
+                }
+            }
+        };
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, []);
+
+    const handleNavigate = (e) => {
+        e.preventDefault();
+        performNavigation(url);
     };
 
     const handleStart = async () => {
